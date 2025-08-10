@@ -134,3 +134,48 @@ export async function authenticate(
     throw error;
   }
 }
+
+export type CustomerState = {
+  errors?: {
+    name?: string[];
+    email?: string[];
+  };
+  message?: string | null;
+};
+
+const CreateCustomer = z.object({
+  name: z.string({
+    invalid_type_error: "Please enter a name.",
+  }),
+  email: z.string().email("Please enter a valid email."),
+});
+
+export async function createCustomer(
+  _prevState: CustomerState,
+  formData: FormData
+) {
+  const rawFormData = CreateCustomer.safeParse({
+    name: formData.get("name"),
+    email: formData.get("email"),
+  });
+
+  if (!rawFormData.success) {
+    return {
+      errors: rawFormData.error.flatten().fieldErrors,
+      message: "Missing Fields. Failed to Create Customer.",
+    };
+  }
+
+  const { name, email } = rawFormData.data;
+
+  try {
+    await sql`INSERT INTO customers (name, email) VALUES (${name}, ${email})`;
+  } catch (error) {
+    throw new Error("Database Error: Failed to Create Customer", {
+      cause: error,
+    });
+  }
+
+  revalidatePath("/dashboard/customers");
+  redirect("/dashboard/customers");
+}
